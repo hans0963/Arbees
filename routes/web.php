@@ -105,4 +105,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 // Root Redirect
 // ──────────────────────────────────────────────────────────
 
-Route::get('/', fn() => redirect()->route('admin.dashboard'));
+Route::get('/', function () {
+    return auth()->check()
+        ? redirect()->route('admin.dashboard')
+        : redirect()->route('login');
+});

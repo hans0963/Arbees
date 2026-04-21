@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Auth;
 
 class LoginController extends Controller
 {
+    protected $redirectTo = '/admin/dashboard';
+
     public function showLoginForm()
     {
         return view('auth.login');
