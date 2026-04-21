@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Inventory;
 use App\Models\InventoryLog;
 use App\Models\Order;
-use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,18 +12,46 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
+    // ── Shared (admin + shop) ──────────────────────────────
+
     public function index()
     {
-        $orders = Order::with('user')->latest()->paginate(15);
-        return view('orders.index', compact('orders'));
+        $orders = Order::with('user')
+            ->when(request()->is('shop/*'), fn($q) => $q->where('user_id', Auth::id()))
+            ->latest()
+            ->paginate(15);
+
+        if (request()->is('shop/*')) {
+            return view('shop.orders', compact('orders'));
+        }
+
+        return view('admin.orders.index', compact('orders'));
     }
+
+    public function show(Order $order)
+    {
+        $order->load(['user', 'orderItems.product']);
+
+        if (request()->is('shop/*')) {
+            return view('shop.order-show', compact('order'));
+        }
+
+        return view('admin.orders.show', compact('order'));
+    }
+
+    // ── Shop (customer-facing) ─────────────────────────────
 
     public function create()
     {
         $products = Product::with('inventory')
             ->where('is_available', true)
             ->get();
-        return view('orders.create', compact('products'));
+
+        if (request()->is('shop/*')) {
+            return view('shop.cart', compact('products'));
+        }
+
+        return view('admin.orders.create', compact('products'));
     }
 
     public function store(Request $request)
@@ -41,8 +68,6 @@ class OrderController extends Controller
         ]);
 
         $order = DB::transaction(function () use ($validated) {
-
-            // 1. Create the order shell first
             $order = Order::create([
                 'user_id'          => Auth::id(),
                 'type'             => $validated['type'],
@@ -56,8 +81,6 @@ class OrderController extends Controller
                 'delivery_address' => $validated['delivery_address'] ?? null,
             ]);
 
-            // 2. Delegate item creation + inventory deduction
-            //    to OrderItemController logic via a shared helper
             foreach ($validated['items'] as $item) {
                 $product   = Product::findOrFail($item['product_id']);
                 $lineTotal = $product->price * $item['quantity'];
@@ -69,7 +92,6 @@ class OrderController extends Controller
                     'subtotal'   => $lineTotal,
                 ]);
 
-                // Deduct inventory and log it
                 $inventory = Inventory::where('product_id', $product->id)->first();
                 if ($inventory) {
                     $before = $inventory->quantity;
@@ -88,7 +110,6 @@ class OrderController extends Controller
                 }
             }
 
-            // 3. Recalculate and save final totals
             $order->subtotal = $order->orderItems()->sum('subtotal');
             $order->total    = $order->subtotal - $order->discount;
             $order->save();
@@ -96,15 +117,17 @@ class OrderController extends Controller
             return $order;
         });
 
-        return redirect()->route('orders.show', $order)
+        // Redirect to correct context
+        if (request()->is('shop/*')) {
+            return redirect()->route('shop.orders.show', $order)
+                ->with('success', 'Order placed successfully.');
+        }
+
+        return redirect()->route('admin.orders.show', $order)
             ->with('success', 'Order placed successfully.');
     }
 
-    public function show(Order $order)
-    {
-        $order->load(['user', 'orderItems.product']);
-        return view('orders.show', compact('order'));
-    }
+    // ── Admin only ─────────────────────────────────────────
 
     public function updateStatus(Request $request, Order $order)
     {
@@ -124,11 +147,39 @@ class OrderController extends Controller
         return redirect()->back()->with('success', 'Order marked as paid.');
     }
 
+    public function cancel(Order $order)
+    {
+        DB::transaction(function () use ($order) {
+            foreach ($order->orderItems as $item) {
+                $inventory = Inventory::where('product_id', $item->product_id)->first();
+                if ($inventory) {
+                    $before = $inventory->quantity;
+                    $after  = $before + $item->quantity;
+                    $inventory->update(['quantity' => $after]);
+
+                    InventoryLog::create([
+                        'product_id'      => $item->product_id,
+                        'user_id'         => Auth::id(),
+                        'type'            => 'adjustment',
+                        'quantity_change' => +$item->quantity,
+                        'quantity_before' => $before,
+                        'quantity_after'  => $after,
+                        'note'            => 'Order #' . $order->order_number . ' cancelled',
+                    ]);
+                }
+            }
+
+            $order->update(['status' => 'cancelled']);
+        });
+
+        return redirect()->back()->with('success', 'Order cancelled and inventory restored.');
+    }
+
     public function destroy(Order $order)
     {
         $order->delete();
 
-        return redirect()->route('orders.index')
+        return redirect()->route('admin.orders.index')
             ->with('success', 'Order deleted.');
     }
 }

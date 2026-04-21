@@ -27,12 +27,12 @@ Route::post('/logout', [App\Http\Controllers\Auth\LoginController::class, 'logou
 // ──────────────────────────────────────────────────────────
 
 Route::middleware(['auth'])->prefix('shop')->name('shop.')->group(function () {
-    Route::get('/',                  [ProductController::class, 'index'])->name('index');           // views/shop/index.blade.php
-    Route::get('/product/{product}', [ProductController::class, 'show'])->name('product');          // views/shop/product.blade.php
-    Route::get('/cart',              [OrderController::class,   'create'])->name('cart');            // views/shop/cart.blade.php
+    Route::get('/',                  [ProductController::class, 'index'])->name('index');           // shop/index.blade.php
+    Route::get('/product/{product}', [ProductController::class, 'show'])->name('product');          // shop/product.blade.php
+    Route::get('/cart',              [OrderController::class,   'create'])->name('cart');            // shop/cart.blade.php
     Route::post('/cart/checkout',    [OrderController::class,   'store'])->name('checkout');
-    Route::get('/orders',            [OrderController::class,   'index'])->name('orders');           // views/shop/orders.blade.php
-    Route::get('/orders/{order}',    [OrderController::class,   'show'])->name('orders.show');       // views/shop/order-show.blade.php
+    Route::get('/orders',            [OrderController::class,   'index'])->name('orders');           // shop/orders.blade.php
+    Route::get('/orders/{order}',    [OrderController::class,   'show'])->name('orders.show');       // shop/order-show.blade.php
 });
 
 // ──────────────────────────────────────────────────────────
@@ -42,59 +42,40 @@ Route::middleware(['auth'])->prefix('shop')->name('shop.')->group(function () {
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
 
     // Dashboard ─────────────────────────────────────────
-    // views/admin/dashboard.blade.php
     Route::get('/dashboard', fn() => view('admin.dashboard'))->name('dashboard');
 
     // Categories ────────────────────────────────────────
-    // views/admin/categories/index.blade.php
-    // views/admin/categories/create.blade.php
-    // views/admin/categories/edit.blade.php
-    // views/admin/categories/show.blade.php
     Route::resource('categories', CategoryController::class);
 
     // Products ──────────────────────────────────────────
-    // views/admin/products/index.blade.php
-    // views/admin/products/create.blade.php
-    // views/admin/products/edit.blade.php
-    // views/admin/products/show.blade.php
     Route::resource('products', ProductController::class);
 
     // Inventory ─────────────────────────────────────────
-    // views/admin/inventory/index.blade.php
-    // views/admin/inventory/show.blade.php
-    // views/admin/inventory/low-stock.blade.php
+    // low-stock must be before {product} to avoid being caught as a model binding
     Route::get('inventory/low-stock',         [InventoryController::class, 'lowStock'])->name('inventory.low-stock');
     Route::get('inventory',                   [InventoryController::class, 'index'])->name('inventory.index');
     Route::get('inventory/{product}',         [InventoryController::class, 'show'])->name('inventory.show');
     Route::post('inventory/{product}/adjust', [InventoryController::class, 'adjust'])->name('inventory.adjust');
 
     // Inventory Logs ────────────────────────────────────
-    // views/admin/inventory-logs/index.blade.php
-    // views/admin/inventory-logs/show.blade.php
-    // views/admin/inventory-logs/product.blade.php
+    // product/{product} must be before {inventoryLog} to avoid being caught as a model binding
     Route::get('inventory-logs',                     [InventoryLogController::class, 'index'])->name('inventory-logs.index');
     Route::get('inventory-logs/product/{product}',   [InventoryLogController::class, 'forProduct'])->name('inventory-logs.product');
     Route::get('inventory-logs/{inventoryLog}',      [InventoryLogController::class, 'show'])->name('inventory-logs.show');
 
     // Orders ────────────────────────────────────────────
-    // views/admin/orders/index.blade.php
-    // views/admin/orders/create.blade.php
-    // views/admin/orders/show.blade.php
     Route::resource('orders', OrderController::class)->except(['edit', 'update']);
     Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
     Route::patch('orders/{order}/pay',    [OrderController::class, 'markAsPaid'])->name('orders.pay');
     Route::patch('orders/{order}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
 
     // Order Items ───────────────────────────────────────
-    // views/admin/order-items/index.blade.php  (optional, items usually shown inside orders.show)
     Route::get('orders/{order}/items',                [OrderItemController::class, 'index'])->name('order-items.index');
     Route::post('orders/{order}/items',               [OrderItemController::class, 'store'])->name('order-items.store');
     Route::patch('orders/{order}/items/{orderItem}',  [OrderItemController::class, 'update'])->name('order-items.update');
     Route::delete('orders/{order}/items/{orderItem}', [OrderItemController::class, 'destroy'])->name('order-items.destroy');
 
     // Sales Reports ─────────────────────────────────────
-    // views/admin/reports/index.blade.php
-    // views/admin/reports/show.blade.php
     Route::get('reports',             [SalesReportController::class, 'index'])->name('reports.index');
     Route::post('reports/generate',   [SalesReportController::class, 'generate'])->name('reports.generate');
     Route::get('reports/{report}',    [SalesReportController::class, 'show'])->name('reports.show');

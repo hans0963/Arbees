@@ -6,7 +6,7 @@
     <title>Dashboard</title>
 </head>
 <body>
-    <h1>Welcome to the Dashboard</h1>
+    <h1>Welcome to the Admin-Dashboard</h1>
     <p>This is your dashboard where you can manage your settings and view your data.</p>
 </body>
 </html>
